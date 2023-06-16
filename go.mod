@@ -1,4 +1,4 @@
-module github.com/caarlos0/timer
+module github.com/ashtacore/pomodoro
 
 go 1.19
 

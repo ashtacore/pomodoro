@@ -1,8 +1,7 @@
-timer
 manpages/
-completions/
-timer.exe
 dist
+pomo
+pomo.exe
 
 #Code Spaces
 oryxBuildBinary

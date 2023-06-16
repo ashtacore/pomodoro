@@ -4,6 +4,6 @@ Set Padding 32
 Set FontSize 18
 Set Height 300
 
-Type "pomo 5s -n Demo"
+Type "./pomo 5s 5s -f Work -b Chill"
 Enter
-Sleep 10s
+Sleep 20s
