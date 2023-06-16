@@ -17,7 +17,7 @@ import (
 )
 
 type model struct {
-	name         string
+	title        string
 	altscreen    bool
 	duration     time.Duration
 	passed       time.Duration
@@ -69,13 +69,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
-		if key.Matches(msg, quitKeys) {
-			m.quitting = true
-			return m, tea.Quit
-		}
 		if key.Matches(msg, intKeys) {
 			m.interrupting = true
 			return m, tea.Quit
+		}
+		if key.Matches(msg, pauseKeys) {
+			return m, m.timer.Toggle()
 		}
 	}
 
@@ -88,8 +87,8 @@ func (m model) View() string {
 	}
 
 	result := boldStyle.Render(m.start.Format(time.Kitchen))
-	if m.name != "" {
-		result += ": " + italicStyle.Render(m.name)
+	if m.title != "" {
+		result += ": " + italicStyle.Render(m.title)
 	}
 	result += " - " + boldStyle.Render(m.timer.View()) + "\n" + m.progress.View()
 	if m.altscreen {
@@ -100,12 +99,14 @@ func (m model) View() string {
 }
 
 var (
-	name                string
+	focusTitle          = "Focus"
+	breakTitle          = "Chill"
+	focusTime           = true
 	altscreen           bool
 	winHeight, winWidth int
 	version             = "dev"
-	quitKeys            = key.NewBinding(key.WithKeys("esc", "q"))
-	intKeys             = key.NewBinding(key.WithKeys("ctrl+c"))
+	intKeys             = key.NewBinding(key.WithKeys("esc", "q", "ctrl+c"))
+	pauseKeys           = key.NewBinding(key.WithKeys(" "))
 	boldStyle           = lipgloss.NewStyle().Bold(true)
 	italicStyle         = lipgloss.NewStyle().Italic(true)
 )
@@ -116,43 +117,39 @@ const (
 )
 
 var rootCmd = &cobra.Command{
-	Use:          "timer",
-	Short:        "timer is like sleep, but with progress report",
+	Use:          "pomo",
+	Short:        "Pomodoro is a system were you focus for an amount of time, then relax for an amount of time",
 	Version:      version,
 	SilenceUsage: true,
-	Args:         cobra.ExactArgs(1),
+	Args:         cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		addSuffixIfArgIsNumber(&(args[0]), "s")
-		duration, err := time.ParseDuration(args[0])
+		addSuffixIfArgIsNumber(&(args[1]), "s")
+		focusDuration, err := time.ParseDuration(args[0])
 		if err != nil {
 			return err
 		}
-		var opts []tea.ProgramOption
-		if altscreen {
-			opts = append(opts, tea.WithAltScreen())
-		}
-		interval := time.Second
-		if duration < time.Minute {
-			interval = 100 * time.Millisecond
-		}
-		m, err := tea.NewProgram(model{
-			duration:  duration,
-			timer:     timer.NewWithInterval(duration, interval),
-			progress:  progress.New(progress.WithDefaultGradient()),
-			name:      name,
-			altscreen: altscreen,
-			start:     time.Now(),
-		}, opts...).Run()
+		breakDuration, err := time.ParseDuration(args[1])
 		if err != nil {
 			return err
 		}
-		if m.(model).interrupting {
-			return fmt.Errorf("interrupted")
+
+		applicationRunning := true
+		for applicationRunning {
+			if focusTime {
+				err = nextTimer(focusDuration, focusTitle)
+				focusTime = false
+			} else {
+				err = nextTimer(breakDuration, breakTitle)
+				focusTime = true
+			}
+			if err != nil {
+				applicationRunning = false
+				return err
+			}
 		}
-		if name != "" {
-			cmd.Printf("%s ", name)
-		}
-		cmd.Printf("finished!\n")
+
+		cmd.Printf("%s finished!\n", focusTitle)
 		return nil
 	},
 }
@@ -176,8 +173,9 @@ var manCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&name, "name", "n", "", "timer name")
-	rootCmd.Flags().BoolVarP(&altscreen, "fullscreen", "f", false, "fullscreen")
+	rootCmd.Flags().StringVarP(&focusTitle, "focus", "f", "Focus", "pomo focus")
+	rootCmd.Flags().StringVarP(&breakTitle, "break", "b", "Chill", "pomo break")
+	rootCmd.Flags().BoolVarP(&altscreen, "fullscreen", "a", false, "fullscreen")
 
 	rootCmd.AddCommand(manCmd)
 }
@@ -193,4 +191,30 @@ func addSuffixIfArgIsNumber(s *string, suffix string) {
 	if err == nil {
 		*s = *s + suffix
 	}
+}
+
+func nextTimer(duration time.Duration, title string) error {
+	var opts []tea.ProgramOption
+	if altscreen {
+		opts = append(opts, tea.WithAltScreen())
+	}
+	interval := time.Second
+	if duration < time.Minute {
+		interval = 100 * time.Millisecond
+	}
+	m, err := tea.NewProgram(model{
+		duration:  duration,
+		timer:     timer.NewWithInterval(duration, interval),
+		progress:  progress.New(progress.WithDefaultGradient()),
+		title:     title,
+		altscreen: altscreen,
+		start:     time.Now(),
+	}, opts...).Run()
+	if err != nil {
+		return err
+	}
+	if m.(model).interrupting {
+		return fmt.Errorf("user exited")
+	}
+	return nil
 }

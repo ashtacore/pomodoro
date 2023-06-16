@@ -3,3 +3,6 @@ manpages/
 completions/
 timer.exe
 dist
+
+#Code Spaces
+oryxBuildBinary
