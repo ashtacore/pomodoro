@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/timer"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gen2brain/beeep"
 	mcobra "github.com/muesli/mango-cobra"
 	"github.com/muesli/roff"
 	"github.com/spf13/cobra"
@@ -103,6 +104,8 @@ var (
 	breakTitle          = "Chill"
 	focusTime           = true
 	altscreen           bool
+	notifications       bool
+	sounds              bool
 	winHeight, winWidth int
 	version             = "dev"
 	intKeys             = key.NewBinding(key.WithKeys("esc", "q", "ctrl+c"))
@@ -176,6 +179,8 @@ func init() {
 	rootCmd.Flags().StringVarP(&focusTitle, "focus", "f", "Focus", "pomo focus")
 	rootCmd.Flags().StringVarP(&breakTitle, "break", "b", "Chill", "pomo break")
 	rootCmd.Flags().BoolVarP(&altscreen, "fullscreen", "a", false, "fullscreen")
+	rootCmd.Flags().BoolVarP(&notifications, "notify", "n", true, "notify")
+	rootCmd.Flags().BoolVarP(&sounds, "sound", "s", false, "sound")
 
 	rootCmd.AddCommand(manCmd)
 }
@@ -215,6 +220,12 @@ func nextTimer(duration time.Duration, title string) error {
 	}
 	if m.(model).interrupting {
 		return fmt.Errorf("user exited")
+	}
+	if notifications {
+		_ = beeep.Notify(title, fmt.Sprintf("%s time has ended", title), "")
+	}
+	if sounds {
+		_ = beeep.Beep(400, 1000)
 	}
 	return nil
 }

@@ -21,6 +21,14 @@ man pomo
 pomo --help
 ```
 
+Several other flags are available:
+- `-a` makes the timer take up the whole terminal
+- `-n=false` disables the default system notifications
+- `-s` will cause a short beep to play when the timer finishes
+  - On Linux sounds require permission to access `/dev/tty0` or `/dev/input/by-path/platform-pcspkr-event-spkr` files for writing, and `pcspkr` module must be loaded. User must be in correct groups, usually `input` and/or `tty`.
+  - On macOS you will need to enable `Audible bell` in Terminal --> Preferences --> Settings --> Advanced.
+  - Note that on some platforms a sound will be included with a desktop notification, making this unneccasary.
+
 You can pause the timer with the space bar.
 
 It is possible to pass a time unit for `<Duration>`.
