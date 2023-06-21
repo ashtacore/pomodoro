@@ -10,7 +10,7 @@
 
 ---
 
-Pomo is a small CLI tool that helps you manage your Pomodoro routine. It is a small edit to the `timer` tool by [caarlos0][https://github.com/caarlos0/timer]
+Pomo is a small CLI tool that helps you manage your Pomodoro routine. It is a small edit to the `timer` tool by [caarlos0](https://github.com/caarlos0/timer)
 
 ## Usage
 
