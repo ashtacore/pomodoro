@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/bubbles/timer"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gen2brain/beeep"
 	mcobra "github.com/muesli/mango-cobra"
 	"github.com/muesli/roff"
 	"github.com/spf13/cobra"
@@ -35,12 +34,18 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
 	case timer.TickMsg:
 		var cmds []tea.Cmd
 		var cmd tea.Cmd
 
+		ms := m.duration.Milliseconds()
+		if ms == 0 {
+			fmt.Println("Duration is zero")
+			return m, nil
+		}
 		m.passed += m.timer.Interval
-		pct := m.passed.Milliseconds() * 100 / m.duration.Milliseconds()
+		pct := m.passed.Milliseconds() * 100 / ms
 		cmds = append(cmds, m.progress.SetPercent(float64(pct)/100))
 
 		m.timer, cmd = m.timer.Update(msg)
@@ -61,8 +66,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case timer.TimeoutMsg:
-		m.quitting = true
-		return m, tea.Quit
+		focusTime = !focusTime
+		if focusTime {
+			m.duration = focusDuration
+			m.title = focusTitle
+		} else {
+			m.duration = breakDuration
+			m.title = breakTitle
+		}
+		m.start = time.Now()
+		m.passed = 0
+
+		interval := time.Second
+		if m.duration < time.Minute {
+			interval = 100 * time.Millisecond
+		}
+		m.timer = timer.NewWithInterval(m.duration, interval)
+		//m.progress = progress.New(progress.WithDefaultGradient())
+		return m, m.timer.Start()
 
 	case progress.FrameMsg:
 		progressModel, cmd := m.progress.Update(msg)
@@ -102,6 +123,8 @@ func (m model) View() string {
 var (
 	focusTitle          = "Focus"
 	breakTitle          = "Chill"
+	focusDuration       time.Duration
+	breakDuration       time.Duration
 	focusTime           = true
 	altscreen           bool
 	notifications       bool
@@ -126,33 +149,46 @@ var rootCmd = &cobra.Command{
 	SilenceUsage: true,
 	Args:         cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var opts []tea.ProgramOption
+		if altscreen {
+			opts = append(opts, tea.WithAltScreen())
+		}
+
 		addSuffixIfArgIsNumber(&(args[0]), "s")
 		addSuffixIfArgIsNumber(&(args[1]), "s")
-		focusDuration, err := time.ParseDuration(args[0])
+		duration, err := time.ParseDuration(args[0])
 		if err != nil {
 			return err
 		}
-		breakDuration, err := time.ParseDuration(args[1])
+		focusDuration = duration
+		breakDuration, err = time.ParseDuration(args[1])
 		if err != nil {
 			return err
 		}
 
-		applicationRunning := true
-		for applicationRunning {
-			if focusTime {
-				err = nextTimer(focusDuration, focusTitle)
-				focusTime = false
-			} else {
-				err = nextTimer(breakDuration, breakTitle)
-				focusTime = true
-			}
-			if err != nil {
-				applicationRunning = false
-				return err
-			}
+		if !focusTime {
+			duration = breakDuration
 		}
 
-		cmd.Printf("%s finished!\n", focusTitle)
+		interval := time.Second
+		if duration < time.Minute {
+			interval = 100 * time.Millisecond
+		}
+		m, err := tea.NewProgram(model{
+			duration:  duration,
+			timer:     timer.NewWithInterval(duration, interval),
+			progress:  progress.New(progress.WithDefaultGradient()),
+			title:     focusTitle,
+			altscreen: altscreen,
+			start:     time.Now(),
+		}, opts...).Run()
+
+		if err != nil {
+			return err
+		}
+		if m.(model).interrupting {
+			return fmt.Errorf("user exited")
+		}
 		return nil
 	},
 }
@@ -196,36 +232,4 @@ func addSuffixIfArgIsNumber(s *string, suffix string) {
 	if err == nil {
 		*s = *s + suffix
 	}
-}
-
-func nextTimer(duration time.Duration, title string) error {
-	var opts []tea.ProgramOption
-	if altscreen {
-		opts = append(opts, tea.WithAltScreen())
-	}
-	interval := time.Second
-	if duration < time.Minute {
-		interval = 100 * time.Millisecond
-	}
-	m, err := tea.NewProgram(model{
-		duration:  duration,
-		timer:     timer.NewWithInterval(duration, interval),
-		progress:  progress.New(progress.WithDefaultGradient()),
-		title:     title,
-		altscreen: altscreen,
-		start:     time.Now(),
-	}, opts...).Run()
-	if err != nil {
-		return err
-	}
-	if m.(model).interrupting {
-		return fmt.Errorf("user exited")
-	}
-	if notifications {
-		_ = beeep.Notify(title, fmt.Sprintf("%s time has ended", title), "")
-	}
-	if sounds {
-		_ = beeep.Beep(400, 1000)
-	}
-	return nil
 }
